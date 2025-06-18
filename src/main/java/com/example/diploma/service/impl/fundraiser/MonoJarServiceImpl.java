@@ -35,7 +35,7 @@ public class MonoJarServiceImpl implements MonoJarService {
         ResponseEntity<String> response = restTemplate.postForEntity(url, request, String.class);
 
         if (!response.getStatusCode().is2xxSuccessful()) {
-            return null; //TODO:check this code fragment
+            return null;
         }
 
         try {

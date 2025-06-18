@@ -1,24 +1,27 @@
 package com.example.diploma.service.impl.fundraiser;
 
 import com.example.diploma.dto.FundraiserDto;
-import com.example.diploma.dto.UserDto;
 import com.example.diploma.mapper.FundraiserMapper;
 import com.example.diploma.model.fundraiser.Fundraiser;
 import com.example.diploma.model.fundraiser.FundraiserCategory;
 import com.example.diploma.model.fundraiser.FundraiserStatus;
 import com.example.diploma.model.fundraiser.UrgencyLevel;
+import com.example.diploma.model.user.User;
 import com.example.diploma.repository.FundraiserRepository;
+import com.example.diploma.repository.ReportRepository;
 import com.example.diploma.service.interfaces.fundraiser.FundraiserService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -29,6 +32,7 @@ public class FundraiserServiceImpl implements FundraiserService {
     private final FundraiserRepository fundraiserRepository;
     private final MonoJarServiceImpl monoJarService;
     private final FundraiserMapper fundraiserMapper;
+    private final ReportRepository reportRepository;
 
 
     @Scheduled(fixedRate = 10 * 60 * 1000)
@@ -38,7 +42,7 @@ public class FundraiserServiceImpl implements FundraiserService {
             try {
                 String jarId = extractJarIdFromUrl(fundraiser.getURL());
                 Fundraiser updated = monoJarService.sendRequest(jarId, "pc");
-                if(updated.getCurrentAmount() >= updated.getTargetAmount()){
+                if (updated.getCurrentAmount() >= updated.getTargetAmount()) {
                     fundraiser.setStatus(FundraiserStatus.CLOSED);
                 }
                 fundraiser.setCurrentAmount(updated.getCurrentAmount());
@@ -56,29 +60,42 @@ public class FundraiserServiceImpl implements FundraiserService {
         List<Fundraiser> all = fundraiserRepository.findAll();
 
         return all.stream()
+                .filter(f -> f.getStatus() == FundraiserStatus.APPROVED || f.getStatus() == FundraiserStatus.CLOSED)
                 .filter(f -> status == null || f.getStatus().name().equalsIgnoreCase(status))
                 .filter(f -> category == null || f.getFundraiserCategory() == FundraiserCategory.valueOf(category.toUpperCase()))
                 .filter(f -> volunteer == null || f.isFromVolunteer() == volunteer)
                 .collect(Collectors.toList());
     }
 
+
     @Override
-    public FundraiserDto create(String jarRef, UserDto userDto) {
+    public FundraiserDto create(String jarRef, Authentication authentication) {
+        User user = (User) authentication.getPrincipal();
+
         String jarReference = extractMonoJarId(jarRef);
         Fundraiser fundraiser = monoJarService.sendRequest(jarReference, "pc");
-        fundraiser.setStatus(FundraiserStatus.PENDING);
+        fundraiser.setStatus(FundraiserStatus.PRIVATE);
         fundraiser.setCreatedAt(LocalDateTime.now());
         fundraiser.setURL(extractUrlFromJson(jarRef));
+
+        // встановлюємо користувача — головне!
+        fundraiser.setOwner(user);
+
+        // зберігаємо
         Fundraiser saved = fundraiserRepository.save(fundraiser);
-        fundraiser.setId(saved.getId());
-        return fundraiserMapper.fundraiserToDto(fundraiser);
+
+        return fundraiserMapper.fundraiserToDto(saved);
     }
+
 
     @Override
     public FundraiserDto findById(Long id) {
         Fundraiser fundraiser = fundraiserRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Fundraiser not found"));
-        return fundraiserMapper.fundraiserToDto(fundraiser);
+        FundraiserDto fundraiserDto = fundraiserMapper.fundraiserToDto(fundraiser);
+        boolean hasReports = reportRepository.existsByFundraiserId(id);
+        fundraiserDto.setHasReports(hasReports);
+        return fundraiserDto;
     }
 
     @Override
@@ -87,6 +104,7 @@ public class FundraiserServiceImpl implements FundraiserService {
                 .map(fundraiserMapper::fundraiserToDto)
                 .toList();
     }
+
 
     @Override
     public List<FundraiserDto> findPending() {
@@ -117,8 +135,8 @@ public class FundraiserServiceImpl implements FundraiserService {
     }
 
     @Override
-    public List<FundraiserDto> findByUser(Long userId) {
-        return fundraiserRepository.findByUserId(userId).stream()
+    public List<FundraiserDto> findByUser(Long ownerId) {
+        return fundraiserRepository.findByOwnerId(ownerId).stream()
                 .map(fundraiserMapper::fundraiserToDto)
                 .toList();
     }
@@ -136,18 +154,28 @@ public class FundraiserServiceImpl implements FundraiserService {
     }
 
     @Override
-    public FundraiserDto approveFundraiser(Long id) {
-        Fundraiser fundraiser = fundraiserRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Fundraiser not found with id: " + id));
-        fundraiser.setStatus(FundraiserStatus.APPROVED);
-        fundraiserRepository.save(fundraiser);
-        return fundraiserMapper.fundraiserToDto(fundraiser);
-    }
-
-    @Override
     public void delete(Long id) {
         fundraiserRepository.deleteById(id);
     }
+
+    @Override
+    public boolean requestPublish(Long fundraiserId, UserDetails userDetails) {
+        Optional<Fundraiser> optFundraiser = fundraiserRepository.findById(fundraiserId);
+        if (optFundraiser.isEmpty()) {
+            return false;
+        }
+        Fundraiser fundraiser = optFundraiser.get();
+
+        // Перевірка, що користувач є власником збору
+        if (!fundraiser.getOwner().getEmail().equals(userDetails.getUsername())) {
+           return false;
+        }
+
+        fundraiser.setStatus(FundraiserStatus.PENDING);
+        fundraiserRepository.save(fundraiser);
+        return true;
+    }
+
 
     private String extractMonoJarId(String inputJson) {
         int urlStart = inputJson.indexOf("\"url\":\"") + 7;

@@ -27,4 +27,5 @@ public class RegisterRequest {
     private String lastName;
     @Email(message = "Email should be valid")
     private String email;
+    private String contacts;
 }

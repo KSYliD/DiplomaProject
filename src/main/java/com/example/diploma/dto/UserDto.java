@@ -20,4 +20,5 @@ public class UserDto {
     private LocalDateTime createdAt;
     private List<Fundraiser> fundraisers;
     private List<Fundraiser> subscriptions;
+    private String contacts;
 }

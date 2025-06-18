@@ -8,10 +8,13 @@ import com.example.diploma.dto.auth.RegisterRequest;
 import com.example.diploma.service.interfaces.security.AuthenticationService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
+@Log4j2
 @CrossOrigin
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -34,7 +37,7 @@ public class AuthController {
         return ResponseEntity.ok(authService.auth(request));
     }
     @GetMapping("/me")
-    public ResponseEntity<UserDto> getCurrentUser(@AuthenticationPrincipal UserDto userDto) {
-        return ResponseEntity.ok(userDto);
+    public ResponseEntity<UserDto> getCurrentUser(@AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(authService.getCurrentUser(userDetails));
     }
 }

@@ -1,16 +1,20 @@
 package com.example.diploma.controller;
 
 import com.example.diploma.dto.FundraiserDto;
-import com.example.diploma.dto.UserDto;
 import com.example.diploma.model.fundraiser.Fundraiser;
 import com.example.diploma.service.interfaces.fundraiser.FundraiserService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+@Log4j2
 @RestController
 @RequestMapping("/api/fundraisers")
 @RequiredArgsConstructor
@@ -28,8 +32,9 @@ public class FundraiserController {
     }
 
     @PostMapping
-    public ResponseEntity<FundraiserDto> createFundraiser(@RequestBody String jarRef, @AuthenticationPrincipal UserDto userDto) {
-        return ResponseEntity.ok(fundraiserService.create(jarRef, userDto));
+    public ResponseEntity<FundraiserDto> createFundraiser(@RequestBody String jarRef,
+                                                          Authentication authentication) {
+        return ResponseEntity.ok(fundraiserService.create(jarRef, authentication));
     }
 
     @GetMapping
@@ -76,5 +81,14 @@ public class FundraiserController {
     @GetMapping("/user/{userId}")
     public ResponseEntity<List<FundraiserDto>> getByUser(@PathVariable Long userId) {
         return ResponseEntity.ok(fundraiserService.findByUser(userId));
+    }
+    @PostMapping("/{id}/request-publish")
+    public ResponseEntity<?> requestPublish(@PathVariable Long id, @AuthenticationPrincipal UserDetails userDetails) {
+        boolean updated = fundraiserService.requestPublish(id, userDetails);
+        if (updated) {
+            return ResponseEntity.ok().build();
+        } else {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Нема прав для публікації або збір не знайдено");
+        }
     }
 }

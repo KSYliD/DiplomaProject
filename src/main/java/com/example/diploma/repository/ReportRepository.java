@@ -9,4 +9,5 @@ import java.util.Optional;
 @Repository
 public interface ReportRepository extends JpaRepository<Report, Long> {
     Optional<Report> findByFundraiserId(Long fundraiserId);
+    boolean existsByFundraiserId(Long fundraiserId);
 }

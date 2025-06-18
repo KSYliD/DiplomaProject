@@ -1,10 +1,12 @@
 package com.example.diploma.model.user;
 
 import com.example.diploma.model.fundraiser.Fundraiser;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.ToString;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
@@ -18,37 +20,35 @@ import java.util.Set;
 @Setter
 @Table(name = "users")
 public class User implements UserDetails {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
     @Column(nullable = false, unique = true)
     @Email
     private String email;
-
     @Column(nullable = false)
     private String password;
-
     @Column(nullable = false)
     private String firstName;
-
     @Column(nullable = false)
     private String lastName;
-
     @ManyToMany(fetch = FetchType.EAGER)
     private Set<Role> role;
-
     @Enumerated(EnumType.STRING)
     private UserStatus status;
-
     private LocalDateTime createdAt;
-
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "owner", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    @JsonManagedReference
     private List<Fundraiser> fundraisers;
-
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
+    @ManyToMany
+    @JoinTable(
+            name = "user_subscriptions",
+            joinColumns = @JoinColumn(name = "user_id"),
+            inverseJoinColumns = @JoinColumn(name = "fundraiser_id")
+    )
+    @JsonManagedReference(value = "user-subscriptions")
     private List<Fundraiser> subscriptions;
+    private String contacts;
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
@@ -85,3 +85,4 @@ public class User implements UserDetails {
         this.createdAt = LocalDateTime.now();
     }
 }
+

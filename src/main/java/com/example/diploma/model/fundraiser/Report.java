@@ -1,6 +1,6 @@
 package com.example.diploma.model.fundraiser;
 
-import com.example.diploma.model.fundraiser.Fundraiser;
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -15,16 +15,12 @@ public class Report {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    @Column(columnDefinition = "TEXT")
-    private String description;
     private String content;
     private String fileUrl;
-
     private LocalDateTime createdAt;
-
     @OneToOne
     @JoinColumn(name = "fundraiser_id")
+    @JsonBackReference
     private Fundraiser fundraiser;
 
 }
